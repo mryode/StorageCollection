@@ -1,62 +1,21 @@
 const crypto = require('crypto');
 const NodeCache = require('node-cache');
-const requestPromise = require('request-promise');
 
 const config = require('../config');
+const { getFilenamesAsync } = require('./actions/dropbox.action');
 
 const myCache = new NodeCache();
 
-
-async function getFilenamesAsync(token) {
-    const result = await listFilePathsAsync(token, '');
-    const temporaryLinkResults = await getTemporaryLinksForPathsAsync(token,result.paths);
-    const links = temporaryLinkResults.map(entry => entry.metadata.name);
-
-    return links;
-}
-
-async function listFilePathsAsync(token, path) {
-    const options = {
-        url: config.DBX_API_DOMAIN + config.DBX_LIST_FOLDER_PATH,
-        headers: {'Authorization': 'Bearer ' + token},
-        method: 'POST',
-        json: true,
-        body: {'path': path}
-    }
-
-    try {
-        const result = await requestPromise(options);
-        
-        const paths = result.entries.map(entry => entry.path_lower);
-        const response = {}
-
-        response.paths = paths;
-        if (result.hasmore) response.cursor = result.cursor;
-        return response;
-    }
-    catch (err) {
-        return next(new Error('error listing folder. ' + err.message));
-    }
-}
-
-async function getTemporaryLinksForPathsAsync(token, paths) {
-    let options = {
-        url: config.DBX_API_DOMAIN + config.DBX_GET_TEMPORARY_LINK_PATH,
-        headers: {'Authorization': 'Bearer ' + token},
-        method: 'POST',
-        json: true
-    }
-
-    const promises = paths.map(path => {
-        options.body = {'path': path};
-        return requestPromise(options);
+function regenerateSessionAsync(req) {
+    return new Promise((resolve, reject) => {
+        req.session.regenerate(err => {
+            err ? reject(err) : resolve();
+        });
     });
-
-    return Promise.all(promises);
 }
 
 const home = async (req, res) => {
-    let token = myCache.get('aTempTokenKey');
+    let token = req.session.token;
     if (token) {
         const filenames = await getFilenamesAsync(token);
         res.send(filenames);
@@ -69,7 +28,7 @@ const home = async (req, res) => {
 const login = (req, res) => {
     const state = crypto.randomBytes(16).toString('hex');
 
-    myCache.set(state, 'aTempSessionValue', 600);
+    myCache.set(state, req.sessionID, 600);
 
     const dbxRedirect = config.DBX_OAUTH_DOMAIN
         + config.DBX_OAUTH_PATH
@@ -86,7 +45,7 @@ const oauthredirect = async (req, res, next) => {
     }
 
     let state = req.query.state;
-    if (!myCache.get(state)) {
+    if (myCache.get(state) !== req.sessionID) {
         return next(new Error('Session expired or invalid state'));
     }
 
@@ -106,7 +65,9 @@ const oauthredirect = async (req, res, next) => {
     try {
         const response = await requestPromise(options);
 
-        myCache.set('aTempTokenKey', response.access_token, 3600);
+        await regenerateSessionAsync(req);
+        req.session.token = response.access_token;
+
         res.redirect('/dropbox');
     }
     catch (error) {

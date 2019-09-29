@@ -11,7 +11,11 @@
   "license": "ISC",
   "dependencies": {
     "express": "^4.17.1",
+    "express-fileupload": "^1.1.6-alpha.5",
+    "express-session": "^1.16.2",
+    "express-sessions": "^1.0.6",
     "node-cache": "^4.2.1",
+    "redis": "^2.8.0",
     "request": "^2.88.0",
     "request-promise": "^4.2.4"
   },
