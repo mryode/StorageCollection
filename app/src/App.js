@@ -1,26 +1,30 @@
-import React from 'react';
-import logo from './logo.svg';
-import './App.css';
+import React, { useState, useEffect } from 'react';
 
+import queryString from 'query-string';
+
+import Header from './sections/Header';
+
+/**
+ * Renders all app sections
+ */
 function App() {
-  return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
-  );
+	const [token, setToken] = useState('');
+
+	const handleLogin = () => (window.location = 'http://localhost:5000/dropbox');
+
+	useEffect(() => {
+		setToken(queryString.parse(window.location.search).access_token);
+	}, []);
+
+	return (
+		<div className="App">
+			<Header
+				title={'Storage Collection'}
+				isLoggedIn={Boolean(token)}
+				onLoginClick={handleLogin}
+			/>
+		</div>
+	);
 }
 
 export default App;
